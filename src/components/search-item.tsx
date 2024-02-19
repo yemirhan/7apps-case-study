@@ -6,53 +6,74 @@ import { Image } from 'expo-image';
 
 export type SearchItemProps = {
   data: Character;
+  children: React.ReactNode;
+  onSelectedChange: () => void;
+  checked: boolean;
 };
-export const SearchItem = (props: SearchItemProps) => {
-  const [checked, setChecked] = React.useState(false);
+const SearchItemContext = React.createContext<Omit<SearchItemProps, 'children'> | undefined>(
+  undefined
+);
+export const SearchItemProvider = (props: SearchItemProps) => {
+  return <SearchItemContext.Provider value={props}>{props.children}</SearchItemContext.Provider>;
+};
+const useSearchItem = () => {
+  const context = React.useContext(SearchItemContext);
+  if (context === undefined) {
+    throw new Error('useSearchItem must be used within a SearchItemProvider');
+  }
+  return context;
+};
+export const SearchItem = ({ children, ...props }: SearchItemProps) => {
   return (
-    <Pressable
-      onPress={() => {
-        setChecked(!checked);
-      }}>
-      <View className={styles.item}>
-        <Checkbox value={checked} onValueChange={(e) => setChecked(e)} />
-        <SearchItemImage src={props.data.image} />
-        <View className="flex flex-col gap-1">
-          <SearchItemText name={props.data.name} />
-          <SearchItemEpisodeCount count={props.data.episode.length} />
-        </View>
-      </View>
-    </Pressable>
+    <SearchItemProvider
+      checked={props.checked}
+      data={props.data}
+      onSelectedChange={props.onSelectedChange}>
+      <Pressable onPress={props.onSelectedChange}>
+        <View className="px-2 py-4 space-x-2 flex flex-row w-full items-center">{children}</View>
+      </Pressable>
+    </SearchItemProvider>
   );
 };
-type SearchItemImageProps = {
-  src: SearchItemProps['data']['image'];
+export const SearchItemCheckbox = () => {
+  const { onSelectedChange, checked } = useSearchItem();
+  return <Checkbox value={checked} onValueChange={onSelectedChange} />;
 };
-const SearchItemImage = (props: SearchItemImageProps) => {
+export const SearchItemImage = () => {
+  const {
+    data: { image },
+  } = useSearchItem();
   return (
     <Image
-      style={{ width: 50, height: 50, borderRadius: 10 }}
-      className="w-12 h-12 rounded"
-      source={{ uri: props.src }}
+      style={{ width: 50, height: 50, marginHorizontal: 8, borderRadius: 10 }}
+      className="w-12 mx-1 h-12 rounded"
+      source={{ uri: image }}
     />
   );
 };
 
-type SearchItemEpisodeCountProps = {
-  count: SearchItemProps['data']['episode']['length'];
-};
-const SearchItemEpisodeCount = (props: SearchItemEpisodeCountProps) => {
-  return <Text className="text-slate-600 font-medium">{`${props.count} Episodes`}</Text>;
-};
-
-type SearchItemTextProps = {
-  name: SearchItemProps['data']['name'];
-};
-const SearchItemText = (props: SearchItemTextProps) => {
-  return <Text className="text-xl">{props.name}</Text>;
+export const SearchItemEpisodeCount = () => {
+  const {
+    data: { episode },
+  } = useSearchItem();
+  return <Text className="text-slate-600 font-medium">{`${episode.length} Episodes`}</Text>;
 };
 
-const styles = {
-  item: 'px-2 py-4 border-b border-slate-200 space-x-2 flex flex-row w-full items-center',
-  checkbox: 'ml-2',
+export const SearchItemText = ({ search }: { search: string }) => {
+  const {
+    data: { name },
+  } = useSearchItem();
+  if (search.length > 0) {
+    const index = name.toLowerCase().indexOf(search.toLowerCase());
+    if (index !== -1) {
+      return (
+        <Text className='text-xl'>
+          {name.slice(0, index)}
+          <Text className="font-bold">{name.slice(index, index + search.length)}</Text>
+          {name.slice(index + search.length)}
+        </Text>
+      );
+    }
+  }
+  return <Text className="text-xl">{name}</Text>;
 };

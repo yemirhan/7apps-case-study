@@ -2,8 +2,18 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Stack, Link } from 'expo-router';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { get } from '~/api/get';
-import { SearchItem } from '~/src/components/search-item';
+import {
+  SearchItem,
+  SearchItemCheckbox,
+  SearchItemEpisodeCount,
+  SearchItemImage,
+  SearchItemText,
+} from '~/src/components/search-item';
 import { MultiSelect, useMultiSelect } from '../components/multi-select';
+import Checkbox from 'expo-checkbox';
+import { Character } from '../types/character.types';
+import { SearchBar } from '../components/search-bar';
+import { SelectedBadge } from '../components/selected-badge';
 
 function useGetCharacters({ search }: { search: string }) {
   return useInfiniteQuery({
@@ -12,6 +22,9 @@ function useGetCharacters({ search }: { search: string }) {
       return await get.characters.queryFn({ page: pageParam, search });
     },
     initialPageParam: 0,
+    select(data) {
+      return data?.pages.flatMap((e) => e.results);
+    },
     getNextPageParam: (lastPage) => {
       if (!lastPage.info.next) {
         return undefined;
@@ -25,20 +38,61 @@ function useGetCharacters({ search }: { search: string }) {
 }
 
 export default function Page() {
-  const multiSelect = useMultiSelect();
+  const multiSelect = useMultiSelect<Character>();
   const characters = useGetCharacters({
     search: multiSelect.search,
   });
-
   return (
     <View className={styles.container}>
-      <Stack.Screen options={{ title: 'Overview' }} />
+      <Stack.Screen options={{ title: 'Search Demo' }} />
       <View className={styles.main}>
         <MultiSelect
+          ToggleComponent={
+            <SearchBar
+              onLayout={(e) => {
+                multiSelect.setToggleHeight(e.nativeEvent.layout.height);
+              }}
+              open={multiSelect.open}
+              setOpen={multiSelect.setOpen}
+              value={multiSelect.search}
+              onValueChange={multiSelect.setSearch}>
+              {[...multiSelect.selected].map(([key, value]) => (
+                <SelectedBadge
+                  key={key}
+                  deselect={() => {
+                    multiSelect.selected.delete(key);
+                    multiSelect.setSelected(new Map(multiSelect.selected));
+                  }}>
+                  {value.name}
+                </SelectedBadge>
+              ))}
+            </SearchBar>
+          }
           {...multiSelect}
           query={characters}
-          item={(item) => <SearchItem key={item.index} data={item.item} />}
-          data={characters.data?.pages.flatMap((e) => e.results) ?? []}
+          item={({ item, index }) => {
+            const hasValue = multiSelect.selected.has(item.id);
+            const onSelectedChange = () => {
+              if (hasValue) {
+                multiSelect.selected.delete(item.id);
+              } else {
+                multiSelect.selected.set(item.id, item);
+              }
+              multiSelect.setSearch(multiSelect.search);
+              multiSelect.setSelected(new Map(multiSelect.selected));
+            };
+            return (
+              <SearchItem checked={hasValue} onSelectedChange={onSelectedChange} data={item}>
+                <SearchItemCheckbox />
+                <SearchItemImage />
+                <View className="flex flex-col gap-1">
+                  <SearchItemText search={multiSelect.search} />
+                  <SearchItemEpisodeCount />
+                </View>
+              </SearchItem>
+            );
+          }}
+          data={characters.data ?? []}
         />
       </View>
     </View>
